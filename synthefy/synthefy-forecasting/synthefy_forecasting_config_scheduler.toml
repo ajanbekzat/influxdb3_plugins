@@ -1,0 +1,23 @@
+# Example TOML configuration for Synthefy Forecasting Plugin
+# Copy this file and customize for your use case
+
+# Required parameters
+measurement = "temperature"
+field = "value"
+api_key = "your-synthefy-api-key-here"
+
+# Optional parameters
+time_range = "30d"
+forecast_horizon = "7d"
+model = "prophet"
+api_url = "https://forecasting.synthefy.com"
+output_measurement = "temperature_forecast"
+
+# Tag filtering (optional)
+# tags = "location=NYC,device=sensor1"
+
+# Metadata fields for covariates (optional)
+# metadata_fields = "humidity,pressure"
+
+# InfluxDB token (if needed)
+# influxdb_token = "your-influxdb-token"
