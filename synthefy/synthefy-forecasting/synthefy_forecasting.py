@@ -142,8 +142,7 @@ try:
     import pandas as pd
 except ImportError as e:
     raise ImportError(
-        f"Required dependencies not installed: {e}. "
-        "Please install: pandas"
+        f"Required dependencies not installed: {e}. Please install: pandas"
     )
 
 try:
@@ -163,6 +162,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Note: LineBuilder is provided by the InfluxDB 3 plugin framework
+# It's injected into the plugin's namespace at runtime, so no import is needed.
+# LineBuilder is used to construct line protocol data for writing to InfluxDB.
 
 # Synthefy Forecasting API base URL (hardcoded)
 SYNTHEFY_API_BASE_URL = "https://forecast.synthefy.com"
@@ -244,8 +246,6 @@ def _build_query(
     """
 
     return query
-
-
 
 
 def _dataframe_to_synthefy_request(
@@ -331,9 +331,7 @@ def _dataframe_to_synthefy_request(
     # Extract history data
     history_timestamps = df["time"].dt.strftime("%Y-%m-%dT%H:%M:%SZ").tolist()
     # Convert NaN to None - pandas fillna doesn't accept None as value in newer versions
-    history_values = [
-        None if pd.isna(val) else val for val in df[field].tolist()
-    ]
+    history_values = [None if pd.isna(val) else val for val in df[field].tolist()]
 
     # Calculate forecast horizon
     if forecast_horizon.endswith("d"):
@@ -399,8 +397,7 @@ def _dataframe_to_synthefy_request(
                 "history_timestamps": history_timestamps,
                 # Convert NaN to None - pandas fillna doesn't accept None as value in newer versions
                 "history_values": [
-                    None if pd.isna(val) else val
-                    for val in df[metadata_field].tolist()
+                    None if pd.isna(val) else val for val in df[metadata_field].tolist()
                 ],
                 "target_timestamps": target_timestamps,
                 "target_values": [None] * len(target_timestamps),
@@ -420,9 +417,7 @@ def _dataframe_to_synthefy_request(
     return request
 
 
-def _call_synthefy_api(
-    request_data: Dict[str, Any], api_key: str
-) -> Dict[str, Any]:
+def _call_synthefy_api(request_data: Dict[str, Any], api_key: str) -> Dict[str, Any]:
     """Call Synthefy Forecasting API."""
     endpoint = f"{SYNTHEFY_API_BASE_URL.rstrip('/')}/v2/forecast"
     headers = {
@@ -535,7 +530,7 @@ def _forecast_response_to_line_builders(
         # Create LineBuilder
         builder = LineBuilder(output_measurement)
         builder.time_ns(ts_ns)
-        
+
         # Add tags
         for tag_key, tag_value in tags.items():
             builder.tag(tag_key, tag_value)
@@ -574,22 +569,28 @@ def _write_forecasts_to_influxdb(
 ) -> None:
     """Write forecast data to InfluxDB using LineBuilder objects."""
     logger.info(f"Writing {len(builders)} forecast points to InfluxDB")
-    
+
     retry_count = 0
     for attempt in range(max_retries):
         try:
             for builder in builders:
                 influxdb3_local.write_to_db(database, builder)
-            logger.info(f"Forecasts written successfully to InfluxDB (attempt {attempt + 1})")
+            logger.info(
+                f"Forecasts written successfully to InfluxDB (attempt {attempt + 1})"
+            )
             return
         except Exception as e:
             retry_count += 1
-            logger.warning(f"Error writing forecast attempt {attempt + 1}/{max_retries}: {e}")
+            logger.warning(
+                f"Error writing forecast attempt {attempt + 1}/{max_retries}: {e}"
+            )
             if attempt < max_retries - 1:
-                wait_time = (2 ** attempt) + random.random()
+                wait_time = (2**attempt) + random.random()
                 time.sleep(wait_time)
             else:
-                logger.error(f"Failed to write forecasts to InfluxDB after {max_retries} attempts: {e}")
+                logger.error(
+                    f"Failed to write forecasts to InfluxDB after {max_retries} attempts: {e}"
+                )
                 raise
 
 
@@ -626,9 +627,7 @@ def process_scheduled_call(
         # Parse tags and metadata fields
         tags = _parse_tags(parsed_args["tags"])
         metadata_fields = [
-            f.strip()
-            for f in parsed_args["metadata_fields"].split(",")
-            if f.strip()
+            f.strip() for f in parsed_args["metadata_fields"].split(",") if f.strip()
         ]
 
         # Build and execute query
@@ -643,7 +642,7 @@ def process_scheduled_call(
 
         # Query InfluxDB using influxdb3_local
         result_rows = influxdb3_local.query(query)
-        
+
         # Convert list of dicts to DataFrame
         if not result_rows:
             df = pd.DataFrame()
@@ -680,9 +679,7 @@ def process_scheduled_call(
         )
 
         # Write back to InfluxDB using influxdb3_local
-        _write_forecasts_to_influxdb(
-            influxdb3_local, builders, database
-        )
+        _write_forecasts_to_influxdb(influxdb3_local, builders, database)
 
         logger.info("Scheduled forecast completed successfully")
 
@@ -737,7 +734,7 @@ def process_writes(
 
         # Query InfluxDB using influxdb3_local
         result_rows = influxdb3_local.query(query)
-        
+
         # Convert list of dicts to DataFrame
         if not result_rows:
             df = pd.DataFrame()
@@ -770,9 +767,7 @@ def process_writes(
             parsed_args["field"],
         )
 
-        _write_forecasts_to_influxdb(
-            influxdb3_local, builders, database
-        )
+        _write_forecasts_to_influxdb(influxdb3_local, builders, database)
 
         logger.info("On-write forecast completed successfully")
 
@@ -812,7 +807,7 @@ def process_request(
         # Parse request body (may be bytes, JSON string, or already a dict)
         if isinstance(request_body, bytes):
             try:
-                body_str = request_body.decode('utf-8')
+                body_str = request_body.decode("utf-8")
                 body_dict = json.loads(body_str)
             except (UnicodeDecodeError, json.JSONDecodeError) as e:
                 logger.warning(f"Failed to decode/parse request body: {e}")
@@ -848,7 +843,9 @@ def process_request(
             )
             logger.error(error_msg)
             return {"message": error_msg}
-        logger.info(f"Using database: {database} (from trigger context: {getattr(influxdb3_local, 'database', None)}, from request: {merged_args.get('database')}, from args: {args.get('database') if args else None})")
+        logger.info(
+            f"Using database: {database} (from trigger context: {getattr(influxdb3_local, 'database', None)}, from request: {merged_args.get('database')}, from args: {args.get('database') if args else None})"
+        )
 
         tags = _parse_tags(parsed_args.get("tags", ""))
         metadata_fields = [
@@ -870,7 +867,7 @@ def process_request(
         # Use influxdb3_local.query() which automatically uses the authenticated context from HTTP request
         # Returns a list of dictionaries (rows)
         result_rows = influxdb3_local.query(query)
-        
+
         # Convert list of dicts to DataFrame
         if not result_rows:
             df = pd.DataFrame()
@@ -903,9 +900,7 @@ def process_request(
         )
 
         # Write using influxdb3_local (authentication handled by framework)
-        _write_forecasts_to_influxdb(
-            influxdb3_local, builders, database
-        )
+        _write_forecasts_to_influxdb(influxdb3_local, builders, database)
 
         return {
             "message": f"Forecast generated and written to InfluxDB. {len(builders)} forecast points written."
